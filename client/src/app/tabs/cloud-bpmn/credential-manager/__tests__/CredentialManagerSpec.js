@@ -395,6 +395,26 @@ describe('<CredentialManager>', function() {
   });
 
 
+  it('should grant full permissions when authorizations cannot be resolved', async function() {
+
+    // given
+    const getAuthorizations = sinon.stub().resolves({
+      success: false,
+      reason: 'UNAUTHORIZED'
+    });
+
+    const zeebeApi = createZeebeApi({ getAuthorizations });
+    const { configurationInstances } = renderManager({ zeebeApi });
+
+    // then
+    await waitFor(() => {
+      const call = fedInstancesCall(configurationInstances);
+
+      expect(call.permissions).to.eql({ create: true, update: true });
+    });
+  });
+
+
   it('should derive permissions from search when authorizations are enabled', async function() {
 
     // given
@@ -521,6 +541,28 @@ describe('<CredentialManager>', function() {
     await waitFor(() => {
       expect(getByText('Add credential')).to.exist;
     });
+  });
+
+
+  it('should show loaded secret references in the create modal', async function() {
+
+    // given
+    const zeebeApi = createZeebeApi({
+      listSecrets: sinon.stub().resolves({
+        success: true,
+        response: { references: [ 'camunda.secrets.API_KEY' ] }
+      })
+    });
+    const configurationTemplates = createConfigurationTemplates(SECRET_TEMPLATE);
+    const { eventBus, findByRole, getByLabelText } = renderManager({ zeebeApi, configurationTemplates });
+
+    // when
+    eventBus.fire('configuration.create', createEvent());
+    await findByRole('dialog');
+    fireEvent.click(getByLabelText('API token'));
+
+    // then
+    expect(await findByRole('option', { name: 'camunda.secrets.API_KEY' })).to.exist;
   });
 
 
